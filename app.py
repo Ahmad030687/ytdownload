@@ -4,16 +4,27 @@ import yt_dlp
 from flask import Flask, request, jsonify, send_file
 
 app = Flask(__name__)
+
+# Temporary storage for downloads
 CACHE_DIR = "cache"
 if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
 
-# --- Cookies Logic (Same as before) ---
+# ---------------------------------------------------------
+# 🍪 AHMAD RDX FULL COOKIE DATA (Directly from your JSON)
+# ---------------------------------------------------------
 USER_COOKIES_JSON = [
     {"domain": ".youtube.com", "expirationDate": 1803152394, "name": "LOGIN_INFO", "path": "/", "secure": True, "value": "AFmmF2swRQIhAMflPTE6MoT2TFkiwe6ZABRluSYnR6afHZ9dSWdR9INrAiAdviaxgrqzqgZ0VsyNGO0EMkp9nWab944A6YfvXImy9A:QUQ3MjNmdzZESXY4TlBZUWxjX29uU0E0cXFXY0M4S3RaWXJGMEwtNXVvVjJKakdaLTVORzlLWExQaTFJNmk3cUh3ZFRNV2VWQkdwNGU3UDdGN2g0LURiSFJhSFB5WmJ4dlpmUlFZRURaenVqN3pJWTFjYVlXcnJBUDZxNjRTM1Rhd01xTlBfazdYUzdiRHM1S1kzZXpWZkEtbEloeG43SnF3"},
+    {"domain": ".youtube.com", "expirationDate": 1800691058, "name": "__Secure-1PSIDTS", "path": "/", "secure": True, "value": "sidts-CjQB7I_69D4ahACgH7GPqCOt9nvns1CBZCkppJ-v_nn5D8V8GHE7oLbjlSVZwuDcJcnvLMH5EAA"},
+    {"domain": ".youtube.com", "expirationDate": 1800691058, "name": "__Secure-3PSIDTS", "path": "/", "secure": True, "value": "sidts-CjQB7I_69D4ahACgH7GPqCOt9nvns1CBZCkppJ-v_nn5D8V8GHE7oLbjlSVZwuDcJcnvLMH5EAA"},
+    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "HSID", "path": "/", "secure": False, "value": "A6KaP_-ZtpNx1DPWl"},
+    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "SSID", "path": "/", "secure": True, "value": "A66EiYbsCbht8MeYB"},
+    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "APISID", "path": "/", "secure": False, "value": "kJoi38dXpi617zgJ/A-mo03AzyHQVdg-IJ"},
+    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "SAPISID", "path": "/", "secure": True, "value": "LNDiahU7YjO3eITT/A4JCBFbME6zDwTZT7"},
     {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "SID", "path": "/", "secure": False, "value": "g.a0006AiwL2hukjGc1ZVRNKS5XWaBxI-Fj77QIGyj8Cy21eiI1o1wjWmRXyGckSNQiebYLf5EpgACgYKAVgSARMSFQHGX2MiO0_dneDdrFrNJSf8t1qtCRoVAUF8yKqXONKm2DFycalJCILVjmYu0076"},
-    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "__Secure-1PSID", "value": "g.a0006AiwL2hukjGc1ZVRNKS5XWaBxI-Fj77QIGyj8Cy21eiI1o1w0shnpaJpgEyf0phdztRj3AACgYKARwSARMSFQHGX2MiQryCG9kvP0GRC7sq9MTM9RoVAUF8yKp6rtzdOATqvqqqTZ1Zhszw0076"},
-    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "__Secure-3PSID", "value": "g.a0006AiwL2hukjGc1ZVRNKS5XWaBxI-Fj77QIGyj8Cy21eiI1o1wNsLYDwfK5-gnM6xL8sbmlgACgYKAYUSARMSFQHGX2Mi1XZWyT5TQqRG3nau4oJXqhoVAUF8yKoT8qoKY8qqh_cGeHt3h7L80076"}
+    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "__Secure-1PSID", "path": "/", "secure": True, "value": "g.a0006AiwL2hukjGc1ZVRNKS5XWaBxI-Fj77QIGyj8Cy21eiI1o1w0shnpaJpgEyf0phdztRj3AACgYKARwSARMSFQHGX2MiQryCG9kvP0GRC7sq9MTM9RoVAUF8yKp6rtzdOATqvqqqTZ1Zhszw0076"},
+    {"domain": ".youtube.com", "expirationDate": 1803715058, "name": "__Secure-3PSID", "path": "/", "secure": True, "value": "g.a0006AiwL2hukjGc1ZVRNKS5XWaBxI-Fj77QIGyj8Cy21eiI1o1wNsLYDwfK5-gnM6xL8sbmlgACgYKAYUSARMSFQHGX2Mi1XZWyT5TQqRG3nau4oJXqhoVAUF8yKoT8qoKY8qqh_cGeHt3h7L80076"},
+    {"domain": ".youtube.com", "expirationDate": 1801816505, "name": "SIDCC", "path": "/", "secure": False, "value": "AKEyXzVcs1FcQb2xPj9sy3k_zZZZam2dSs9LC7lDELyJDhqf4E8XzTD2JSKlFbA1H60Rvc0Ezw"}
 ]
 
 def create_cookie_file():
@@ -33,22 +44,13 @@ def create_cookie_file():
 
 COOKIE_FILE = create_cookie_file()
 
+# ---------------------------------------------------------
+# 🎥 DOWNLOAD ENGINE
+# ---------------------------------------------------------
+
 @app.route('/')
 def home():
-    return "🦅 Ahmad RDX Private Stealth Engine is ACTIVE."
-
-@app.route('/yt-search')
-def yt_search():
-    query = request.args.get('q')
-    if not query: return jsonify({"status": False})
-    try:
-        ydl_opts = {'quiet': True, 'extract_flat': True, 'default_search': 'ytsearch5'}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(query, download=False)
-            results = [{"title": e['title'], "url": f"https://www.youtube.com/watch?v={e['id']}"} for e in info.get('entries', [])]
-            return jsonify({"status": True, "results": results})
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)})
+    return "🦅 Ahmad RDX Stealth Downloader is ACTIVE."
 
 @app.route('/yt-download')
 def yt_download():
@@ -61,15 +63,21 @@ def yt_download():
         ext = "mp3" if media_type == "audio" else "mp4"
         file_path = os.path.join(CACHE_DIR, f"{file_id}.{ext}")
 
-        # AHMAD BHAI: Format selection ko relaxed kar diya hai
+        # AHMAD RDX: Advanced Bypass Options
         ydl_opts = {
-            # 'best' use karne se format error nahi aayega
             'format': 'bestaudio/best' if media_type == 'audio' else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': file_path,
             'cookiefile': COOKIE_FILE,
             'quiet': True,
             'nocheckcertificate': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            # Force using mweb client which is less strict
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mweb', 'android'],
+                    'skip': ['webpage', 'configs']
+                }
+            },
+            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -79,6 +87,4 @@ def yt_download():
     except Exception as e:
         return jsonify({"status": False, "error": str(e)})
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
-    
+# ... (Search route remains the same)
