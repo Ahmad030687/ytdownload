@@ -1,43 +1,46 @@
-const express = require('express');
-const axios = require('axios');
-const app = express();
-const PORT = process.env.PORT || 3000;
+from flask import Flask, request, send_file
+import requests
+import io
 
-// 🦅 AHMAD RDX PRIVATE CONFIG
-const HF_TOKEN = "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"; 
-const MODEL_URL = "https://api-inference.huggingface.co/models/SG161222/RealVisXL_V4.0";
+app = Flask(__name__)
 
-app.get('/api/rdx-edit', async (req, res) => {
-    const { prompt, imageUrl } = req.query;
+# 🦅 AHMAD RDX PRIVATE CONFIG
+HF_TOKEN = "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"
+MODEL_URL = "https://api-inference.huggingface.co/models/SG161222/RealVisXL_V4.0"
 
-    if (!prompt || !imageUrl) {
-        return res.status(400).json({ error: "Prompt aur ImageUrl lazmi hain ustad!" });
-    }
+@app.route('/')
+def home():
+    return "🦅 Ahmad RDX Python API is Running!"
 
-    try {
-        // 🎭 Heavy Generative Prompt Engineering
-        const finalPrompt = `Professional 3D name art. The name "${prompt}" in 3D glowing gold letters. Background and vibe inspired by: ${imageUrl}. Cinematic lighting, 8k, realistic textures.`;
+@app.route('/api/rdx-edit', methods=['GET'])
+def rdx_edit():
+    prompt = request.args.get('prompt')
+    image_url = request.args.get('imageUrl')
 
-        const response = await axios({
-            url: MODEL_URL,
-            method: "POST",
-            headers: { "Authorization": `Bearer ${HF_TOKEN}` },
-            data: JSON.stringify({ inputs: finalPrompt }),
-            responseType: "arraybuffer",
-            timeout: 120000
-        });
+    if not prompt or not image_url:
+        return {"error": "Prompt aur ImageUrl lazmi hain ustad!"}, 400
 
-        res.set('Content-Type', 'image/png');
-        res.send(response.data);
+    # 🎭 Heavy Generative Prompt Engineering (Huma/Ezzah Style)
+    final_prompt = f"Professional 3D name art. The name '{prompt}' written in massive glowing 3D golden letters. Background and aesthetic inspired by: {image_url}. Cinematic lighting, 8k resolution, highly detailed."
 
-    } catch (error) {
-        console.error(error.message);
-        if (error.response && error.response.status === 503) {
-            res.status(503).json({ error: "AI Engine is waking up. Please retry in 30 seconds." });
-        } else {
-            res.status(500).json({ error: "Internal Server Error" });
-        }
-    }
-});
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    
+    try:
+        # Calling Hugging Face
+        response = requests.post(MODEL_URL, headers=headers, json={"inputs": final_prompt}, timeout=120)
+        
+        if response.status_code == 503:
+            return {"error": "AI Engine is waking up. Retry in 30 seconds."}, 503
+        
+        if response.status_code != 200:
+            return {"error": "AI Model Error", "details": response.text}, 500
 
-app.listen(PORT, () => console.log(`🦅 Ahmad RDX API is live on port ${PORT}`));
+        # Sending the image back to the bot
+        return send_file(io.BytesIO(response.content), mimetype='image/png')
+
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+    
