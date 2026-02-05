@@ -1,66 +1,73 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import requests
-import base64
 import io
-from PIL import Image
-import torch
-from diffusers import StableDiffusionInpaintPipeline
+import random
 
 app = Flask(__name__)
 
-# 🔥 Load Model (ONE TIME)
-pipe = StableDiffusionInpaintPipeline.from_pretrained(
-    "runwayml/stable-diffusion-inpainting",
-    torch_dtype=torch.float32
-)
-pipe = pipe.to("cpu")  # Render free = CPU only
+# 🦅 RDX MASTER GENERATOR ENGINE
+def rdx_generator(prompt, style_prompt, image_url=None):
+    seed = random.randint(1, 9999999)
+    # Adding Nano-Banana Style Prompt Engineering
+    final_prompt = f"{style_prompt}. User Prompt: {prompt}. "
+    if image_url:
+        final_prompt += f"Inspired by environment: {image_url}. "
+    
+    final_prompt += "8k resolution, cinematic lighting, highly detailed, professional art."
+    
+    # Using Flux for high-quality text and image blending
+    url = f"https://image.pollinations.ai/prompt/{final_prompt}?width=1024&height=1024&nologo=true&model=flux&seed={seed}"
+    return url
 
-@app.route("/")
-def home():
-    return "🦅 AHMAD RDX IMAGE EDIT API - LIVE"
+@app.route('/')
+def health():
+    return jsonify({"status": "Online", "owner": "AHMAD RDX", "commands_count": 22})
 
-@app.route("/edit-image", methods=["POST"])
-def edit_image():
+# --- 🎭 20+ COMMANDS ENDPOINTS ---
+
+@app.route('/api/<style>', methods=['POST'])
+def handle_api(style):
     data = request.json
+    prompt = data.get('prompt', 'Beautiful Art')
+    img_url = data.get('images', [None])[0] # Array format support
 
-    image_url = data.get("image_url")
-    prompt = data.get("prompt")
+    # Styles Dictionary
+    styles = {
+        "create-v9": "Professional 3D golden name art, luxury aesthetic",
+        "neon": "Vibrant 3D neon glass lettering, cyberpunk city background",
+        "fire": "Realistic fire and flame textured 3D text, burning embers",
+        "water": "Crystal clear water splash 3D typography, refreshing vibe",
+        "cyberpunk": "High-tech cyberpunk style with futuristic blue and pink lighting",
+        "anime": "Professional Studio Ghibli style anime illustration",
+        "sketch": "Hand-drawn detailed pencil sketch art",
+        "horror": "Dark, misty, scary horror movie poster style",
+        "royal": "King style silver and diamond encrusted 3D name art",
+        "nature": "Text made of green leaves and flowers, jungle aesthetic",
+        "space": "Galactic nebula style, stars and planets background",
+        "glitch": "Modern digital glitch and vaporwave aesthetic",
+        "pixel": "Retro 8-bit pixel art style",
+        "cartoon": "3D Disney Pixar style character and text",
+        "gold-leaf": "Elegant gold leaf texture on black marble",
+        "retro": "1980s synthwave retro style glowing grid",
+        "glass": "Transparent frosted glass effect with soft shadows",
+        "oil-paint": "Classical heavy brush stroke oil painting",
+        "graffiti": "Street art graffiti style on urban brick wall",
+        "magical": "Fantasy world with sparkles, fairies, and glowing dust",
+        "minimalist": "Clean, simple, professional flat vector design",
+        "metallic": "Shiny brushed metal chrome 3D effect"
+    }
 
-    if not image_url or not prompt:
-        return jsonify({"status": False, "error": "image_url & prompt required"})
+    if style not in styles:
+        return jsonify({"error": "Style not found ustad!"}), 404
 
+    target_url = rdx_generator(prompt, styles[style], img_url)
+    
     try:
-        # 📥 Download image
-        img_data = requests.get(image_url).content
-        image = Image.open(io.BytesIO(img_data)).convert("RGB")
-
-        # ⚪ Auto mask (simple full edit)
-        mask = Image.new("L", image.size, 255)
-
-        # 🎨 Generate edited image
-        result = pipe(
-            prompt=prompt,
-            image=image,
-            mask_image=mask,
-            num_inference_steps=25
-        ).images[0]
-
-        # 🔁 Convert to Base64
-        buffered = io.BytesIO()
-        result.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode()
-
-        return jsonify({
-            "status": True,
-            "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗",
-            "prompt": prompt,
-            "image_base64": img_base64
-        })
-
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)})
+        response = requests.get(target_url, timeout=60)
+        return send_file(io.BytesIO(response.content), mimetype='image/png')
+    except:
+        return jsonify({"error": "AI Server Busy"}), 502
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
+    
