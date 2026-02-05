@@ -2,3 +2,4 @@ flask
 googlesearch-python
 yt-dlp
 gunicorn
+beautifulsoup4
