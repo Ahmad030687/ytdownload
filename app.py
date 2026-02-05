@@ -1,71 +1,43 @@
-import os
-import requests
-import json
-from flask import Flask, request, jsonify
+const express = require('express');
+const axios = require('axios');
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-app = Flask(__name__)
+// 🦅 AHMAD RDX PRIVATE CONFIG
+const HF_TOKEN = "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"; 
+const MODEL_URL = "https://api-inference.huggingface.co/models/SG161222/RealVisXL_V4.0";
 
-# 🦅 AHMAD RDX - REAL NANO-BANANA BRIDGE
-@app.route('/api/ai/geminiOption', methods=['GET'])
-def gemini_nano_banana():
-    prompt = request.args.get('prompt')
-    image_url = request.args.get('imageUrl')
-    cookie = request.args.get('cookie')
-    
-    if not prompt or not image_url or not cookie:
-        return jsonify({"success": False, "error": "Missing parameters"}), 400
+app.get('/api/rdx-edit', async (req, res) => {
+    const { prompt, imageUrl } = req.query;
 
-    try:
-        # 1. Setup Session (Browser ki tarah dikhna zaroori hai)
-        session = requests.Session()
-        headers = {
-            "Cookie": cookie,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Content-Type": "application/json",
-            "Referer": "https://gemini.google.com/"
+    if (!prompt || !imageUrl) {
+        return res.status(400).json({ error: "Prompt aur ImageUrl lazmi hain ustad!" });
+    }
+
+    try {
+        // 🎭 Heavy Generative Prompt Engineering
+        const finalPrompt = `Professional 3D name art. The name "${prompt}" in 3D glowing gold letters. Background and vibe inspired by: ${imageUrl}. Cinematic lighting, 8k, realistic textures.`;
+
+        const response = await axios({
+            url: MODEL_URL,
+            method: "POST",
+            headers: { "Authorization": `Bearer ${HF_TOKEN}` },
+            data: JSON.stringify({ inputs: finalPrompt }),
+            responseType: "arraybuffer",
+            timeout: 120000
+        });
+
+        res.set('Content-Type', 'image/png');
+        res.send(response.data);
+
+    } catch (error) {
+        console.error(error.message);
+        if (error.response && error.response.status === 503) {
+            res.status(503).json({ error: "AI Engine is waking up. Please retry in 30 seconds." });
+        } else {
+            res.status(500).json({ error: "Internal Server Error" });
         }
+    }
+});
 
-        # 2. Gemini Chat Endpoint (NanoBanana works here)
-        # Hum Google ke internal "Chat" endpoint ko hit karenge jo image processing karta hai
-        api_url = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardChatUi/GetBardResponse"
-        
-        # Ye payload NanoBanana ka asali raaz hai
-        payload = f'f.req=[null,"[[\\"{prompt}\\"],[\\"en\\"],null,[[\\"{image_url}\\\",1],null,\\"\\"]]"]&at=1'
-
-        response = session.post(api_url, headers=headers, data=payload, timeout=60)
-        
-        # 3. Response Parsing
-        # Gemini ka response boht complex hota hai, hum us mein se image link dhoondenge
-        res_text = response.text
-        
-        # Yahan hum check karenge ke kya Gemini ne koi image generate ki hai
-        if "http" in res_text:
-            # Simple logic: Pehla milne wala googleusercontent link uthao
-            import re
-            links = re.findall(r'(https?://googleusercontent\.com/[^\s"\]]+)', res_text)
-            
-            if links:
-                final_link = links[0]
-            else:
-                # Agar direct link nahi mila toh fallback (Simulation of success)
-                return jsonify({"success": False, "error": "Gemini processed but no image link found in response"}), 500
-        else:
-            return jsonify({"success": False, "error": "Gemini rejected the request. Maybe cookies expired?"}), 500
-
-        # EXACT ANABOT FORMAT
-        return jsonify({
-            "success": True,
-            "data": {
-                "result": {
-                    "url": final_link
-                }
-            },
-            "author": "AHMAD RDX"
-        })
-
-    except Exception as e:
-        return jsonify({"success": False, "error": f"System Error: {str(e)}"}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
-    
+app.listen(PORT, () => console.log(`🦅 Ahmad RDX API is live on port ${PORT}`));
