@@ -7,18 +7,17 @@ import os
 
 app = Flask(__name__)
 
-# Professional User-Agents to bypass blocks
+# Fake browser identity
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 ]
 
 @app.route('/')
 def home():
-    return "🦅 𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗 - 𝐔𝐥𝐭𝐢𝐦𝐚𝐭𝐞 𝐀𝐏𝐈 𝐢𝐬 𝐋𝐢𝐯𝐞!"
+    return "🦅 𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗 - 𝐁𝐮𝐥𝐥𝐞𝐭𝐩𝐫𝐨𝐨𝐟 𝐀𝐏𝐈 𝐢𝐬 𝐋𝐢𝐯𝐞!"
 
-# --- 🔍 SMART SEARCH (Multi-Selector & Fallback) ---
+# --- 🔍 SMART SEARCH (DuckDuckGo Primary - No More [] Results) ---
 @app.route('/api/google', methods=['GET'])
 def smart_search():
     query = request.args.get('q')
@@ -27,42 +26,30 @@ def smart_search():
     results = []
     headers = {"User-Agent": random.choice(USER_AGENTS)}
 
+    # Google nakhre karta hai, is liye seedha DuckDuckGo par jao jo hamesha chalta hai
     try:
-        url = f"https://www.google.com/search?q={query}&hl=en"
-        resp = requests.get(url, headers=headers, timeout=10)
+        ddg_url = f"https://duckduckgo.com/html/?q={query}"
+        resp = requests.get(ddg_url, headers=headers, timeout=10)
         soup = BeautifulSoup(resp.text, 'html.parser')
-
-        # Try multiple selectors because Google changes them often
-        search_blocks = soup.select('div.g, div.tF2Cxc, div.kvH9eb, div.yuRUbf')
         
-        for g in search_blocks:
-            title = g.select_one('h3')
-            link = g.select_one('a')
+        for r in soup.select('.result__body'):
+            title = r.select_one('.result__title')
+            link = r.select_one('.result__a')
             if title and link:
                 results.append({
-                    "title": title.get_text(),
+                    "title": title.get_text().strip(),
                     "link": link['href']
                 })
-    except:
-        pass
+        
+        if not results:
+            return jsonify({"status": False, "msg": "No results found even on backup engine!"})
 
-    # Backup: DuckDuckGo (Never returns empty [])
-    if not results:
-        try:
-            ddg_url = f"https://duckduckgo.com/html/?q={query}"
-            resp = requests.get(ddg_url, headers=headers, timeout=10)
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            for r in soup.select('.result__body'):
-                title = r.select_one('.result__title')
-                link = r.select_one('.result__a')
-                if title and link:
-                    results.append({"title": title.get_text().strip(), "link": link['href']})
-        except:
-            return jsonify({"status": False, "error": "Search Engines are busy!"})
+        return jsonify({"status": True, "results": results[:10]})
 
-    return jsonify({"status": True, "results": results[:10]})
+    except Exception as e:
+        return jsonify({"status": False, "error": str(e)})
 
-# --- 📥 YOUTUBE DOWNLOADER (Flexible Format Logic) ---
+# --- 📥 YOUTUBE DOWNLOADER (Auto-Format Fallback) ---
 @app.route('/api/ytdl', methods=['GET'])
 def youtube_download():
     video_url = request.args.get('url')
@@ -70,19 +57,16 @@ def youtube_download():
     
     if not video_url: return jsonify({"status": False, "error": "URL missing!"})
 
-    # "Requested format not available" fix:
-    # Hum 'best' ko priority denge taake video zaroor mile
-    if req_type == 'audio':
-        format_str = 'bestaudio/best'
-    else:
-        # Priority: mp4 > any best video
-        format_str = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+    # Sabse "SAFE" format jo har video ke liye available hota hai
+    # itag 18 = 360p MP4 (Hamesha chalta hai)
+    # best = Kuch bhi mil jaye
+    format_logic = 'bestaudio/best' if req_type == 'audio' else '18/bestvideo+bestaudio/best'
 
     ydl_opts = {
-        'format': format_str,
+        'format': format_logic,
         'quiet': True,
         'no_warnings': True,
-        'cookiefile': 'cookies.txt', # Netscape format only
+        'cookiefile': 'cookies.txt', # Make sure cookies.txt is in Netscape format
         'nocheckcertificate': True,
         'user_agent': random.choice(USER_AGENTS),
         'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
@@ -98,14 +82,19 @@ def youtube_download():
                 "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗"
             })
     except Exception as e:
-        # Last Resort: Agar phir bhi fail ho, toh sabse basic format uthao
+        # AGAR PHIR BHI ERROR AAYE, TOH SABSE BASIC 'BEST' USE KARO
         try:
             ydl_opts['format'] = 'best'
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=False)
-                return jsonify({"status": True, "title": info.get('title'), "download_url": info.get('url')})
+                return jsonify({
+                    "status": True,
+                    "title": info.get('title'),
+                    "download_url": info.get('url'),
+                    "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗 (Fallback Mode)"
+                })
         except:
-            return jsonify({"status": False, "error": str(e)})
+            return jsonify({"status": False, "error": f"YouTube is blocking Render: {str(e)}"})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
