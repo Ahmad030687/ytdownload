@@ -4,13 +4,15 @@ import io
 
 app = Flask(__name__)
 
-# 🦅 AHMAD RDX PRIVATE CONFIG
+# 🦅 AHMAD RDX PRIVATE CONFIG (UPDATED ROUTER URL)
 HF_TOKEN = "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"
-MODEL_URL = "https://api-inference.huggingface.co/models/SG161222/RealVisXL_V4.0"
+# Purana URL: https://api-inference.huggingface.co/...
+# Naya URL: https://router.huggingface.co/...
+MODEL_URL = "https://router.huggingface.co/models/SG161222/RealVisXL_V4.0"
 
 @app.route('/')
 def home():
-    return "🦅 Ahmad RDX Python API is Running!"
+    return "🦅 Ahmad RDX Python API (Router Edition) is Running!"
 
 @app.route('/api/rdx-edit', methods=['GET'])
 def rdx_edit():
@@ -20,22 +22,23 @@ def rdx_edit():
     if not prompt or not image_url:
         return {"error": "Prompt aur ImageUrl lazmi hain ustad!"}, 400
 
-    # 🎭 Heavy Generative Prompt Engineering (Huma/Ezzah Style)
-    final_prompt = f"Professional 3D name art. The name '{prompt}' written in massive glowing 3D golden letters. Background and aesthetic inspired by: {image_url}. Cinematic lighting, 8k resolution, highly detailed."
+    # 🎭 Heavy Generative Prompt Engineering
+    final_prompt = f"Professional 3D name art. The name '{prompt}' written in massive glowing 3D golden letters. Background and aesthetic inspired by: {image_url}. Cinematic lighting, 8k resolution, realistic textures."
 
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     try:
-        # Calling Hugging Face
+        # Calling Hugging Face Router
         response = requests.post(MODEL_URL, headers=headers, json={"inputs": final_prompt}, timeout=120)
         
+        # Check for model loading
         if response.status_code == 503:
             return {"error": "AI Engine is waking up. Retry in 30 seconds."}, 503
         
         if response.status_code != 200:
-            return {"error": "AI Model Error", "details": response.text}, 500
+            return {"error": "AI Model Error", "details": response.json()}, response.status_code
 
-        # Sending the image back to the bot
+        # Sending the image back
         return send_file(io.BytesIO(response.content), mimetype='image/png')
 
     except Exception as e:
