@@ -1,13 +1,11 @@
 import os
 import requests
-import base64
+import json
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# 🦅 AHMAD RDX PRIVATE NANO-BANANA ENGINE
-GEMINI_KEY = "AIzaSyBauxWLnLg9qujUA8xxBNeaDwr14q1Mdmo"
-
+# 🦅 AHMAD RDX - REAL NANO-BANANA BRIDGE
 @app.route('/api/ai/geminiOption', methods=['GET'])
 def gemini_nano_banana():
     prompt = request.args.get('prompt')
@@ -15,45 +13,44 @@ def gemini_nano_banana():
     cookie = request.args.get('cookie')
     
     if not prompt or not image_url or not cookie:
-        return jsonify({"success": False, "error": "Missing parameters (prompt, imageUrl, or cookie)"}), 400
+        return jsonify({"success": False, "error": "Missing parameters"}), 400
 
     try:
-        # 1. Image ko Fetch karna (Gemini ko bhejney ke liye)
-        img_res = requests.get(image_url)
-        img_base64 = base64.b64encode(img_res.content).decode('utf-8')
-
-        # 2. Gemini Official API call with Cookies
-        # Nano Banana ka kaam Vision Model se image manipulation karwana hai
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-        
+        # 1. Setup Session (Browser ki tarah dikhna zaroori hai)
+        session = requests.Session()
         headers = {
+            "Cookie": cookie,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
             "Content-Type": "application/json",
-            "Cookie": cookie
+            "Referer": "https://gemini.google.com/"
         }
 
-        payload = {
-            "contents": [{
-                "parts": [
-                    {"text": f"Instruction: {prompt}. Return only the direct URL of the edited image generated."},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": img_base64}}
-                ]
-            }]
-        }
+        # 2. Gemini Chat Endpoint (NanoBanana works here)
+        # Hum Google ke internal "Chat" endpoint ko hit karenge jo image processing karta hai
+        api_url = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardChatUi/GetBardResponse"
+        
+        # Ye payload NanoBanana ka asali raaz hai
+        payload = f'f.req=[null,"[[\\"{prompt}\\"],[\\"en\\"],null,[[\\"{image_url}\\\",1],null,\\"\\"]]"]&at=1'
 
-        response = requests.post(url, headers=headers, json=payload)
-        res_json = response.json()
-
-        # 3. Gemini Response se link nikalna
-        try:
-            # Gemini jo text deta hai us mein image link hota hai
-            final_link = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
+        response = session.post(api_url, headers=headers, data=payload, timeout=60)
+        
+        # 3. Response Parsing
+        # Gemini ka response boht complex hota hai, hum us mein se image link dhoondenge
+        res_text = response.text
+        
+        # Yahan hum check karenge ke kya Gemini ne koi image generate ki hai
+        if "http" in res_text:
+            # Simple logic: Pehla milne wala googleusercontent link uthao
+            import re
+            links = re.findall(r'(https?://googleusercontent\.com/[^\s"\]]+)', res_text)
             
-            # Agar Gemini link nahi balkay text de raha hai, toh hum image processing trigger karenge
-            if "http" not in final_link:
-                # Fallback logic for NanoBanana simulation
-                final_link = f"https://image.pollinations.ai/prompt/{prompt}?image={image_url}" # Sirf safety ke liye
-        except:
-            return jsonify({"success": False, "error": "Gemini failed to process image"}), 500
+            if links:
+                final_link = links[0]
+            else:
+                # Agar direct link nahi mila toh fallback (Simulation of success)
+                return jsonify({"success": False, "error": "Gemini processed but no image link found in response"}), 500
+        else:
+            return jsonify({"success": False, "error": "Gemini rejected the request. Maybe cookies expired?"}), 500
 
         # EXACT ANABOT FORMAT
         return jsonify({
@@ -67,7 +64,7 @@ def gemini_nano_banana():
         })
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": f"System Error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
