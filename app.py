@@ -1,48 +1,62 @@
 import os
-from flask import Flask, request, send_file
+from flask import Flask, request, jsonify
 import requests
+import base64
 import io
 
 app = Flask(__name__)
 
-# 🦅 AHMAD RDX PRIVATE CONFIG (Now using Environment Variables)
-# Ab ye token code mein nazar nahi aayega, isliye block nahi hoga!
-HF_TOKEN = os.getenv("HF_TOKEN") 
-MODEL_URL = "https://router.huggingface.co/models/SG161222/RealVisXL_V4.0"
+# 🦅 AHMAD RDX PRO CONFIG
+# Segmind ya Replicate ki API Key (Ye bilkul private hoti hai)
+# Is se aapka result 100% "Pure Nano-Banana" jaisa aayega
+API_KEY = "SG_bc779b89667da8d3" # Yahan apni API Key dalein
+MODEL_URL = "https://api.segmind.com/v1/sdxl1.0-img2img"
 
-@app.route('/')
+@app.route("/")
 def home():
-    return "🦅 Ahmad RDX Python API (Security Fixed) is Online!"
+    return "🦅 AHMAD RDX – PURE PRIVATE AI ENGINE LIVE"
 
-@app.route('/api/rdx-edit', methods=['GET'])
-def rdx_edit():
-    # Security Check: Agar token nahi mila
-    if not HF_TOKEN:
-        return {"error": "HF_TOKEN is missing in Environment Variables!"}, 500
-
-    prompt = request.args.get('prompt')
-    image_url = request.args.get('imageUrl')
-
-    if not prompt or not image_url:
-        return {"error": "Prompt aur ImageUrl lazmi hain!"}, 400
-
-    # 🎭 Premium Generative Prompt
-    final_prompt = f"Professional 3D name art. The name '{prompt}' written in massive glowing 3D golden letters. Background vibe: {image_url}. Cinematic lighting, 8k resolution, realistic textures."
-
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
+@app.route("/edit", methods=["POST"])
+def edit():
     try:
-        response = requests.post(MODEL_URL, headers=headers, json={"inputs": final_prompt}, timeout=120)
-        
+        data = request.json
+        prompt = data.get("prompt")
+        image_url = data.get("imageUrl") # Nano-Banana URL leta hai
+
+        if not prompt or not image_url:
+            return jsonify({"status": False, "error": "Missing prompt or imageUrl"}), 400
+
+        # 🎭 Professional SDXL Parameters
+        payload = {
+            "prompt": f"Professional 3D name art, {prompt}, glowing gold letters, cinematic lighting, 8k, realistic masterpiece",
+            "negative_prompt": "blurry, low quality, distorted, ugly",
+            "image": image_url,
+            "strength": 0.75,
+            "guidance_scale": 12,
+            "samples": 1,
+            "scheduler": "UniPC",
+            "num_inference_steps": 30
+        }
+
+        headers = {'x-api-key': API_KEY}
+
+        # 🚀 Calling the Pure AI Node
+        response = requests.post(MODEL_URL, json=payload, headers=headers)
+
         if response.status_code == 200:
-            return send_file(io.BytesIO(response.content), mimetype='image/png')
-        
-        # Handle model loading or errors
-        return {"error": "AI Model Error", "status": response.status_code, "msg": response.text}, response.status_code
+            # Direct Image stream back to bot
+            img_base64 = base64.b64encode(response.content).decode()
+            return jsonify({
+                "status": True,
+                "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗",
+                "image_base64": img_base64
+            })
+        else:
+            return jsonify({"status": False, "error": response.text}), response.status_code
 
     except Exception as e:
-        return {"error": str(e)}, 500
+        return jsonify({"status": False, "error": str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
     
