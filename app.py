@@ -1,15 +1,37 @@
 from flask import Flask, request, jsonify, send_file
-import yt_dlp
 import requests
 from bs4 import BeautifulSoup
 import random
 import os
 import io
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageOps
 
 app = Flask(__name__)
 
-# --- 🎭 PRO HEADERS (Anti-Block Logic) ---
+# --- 🛠️ SETUP: AUTO-DOWNLOAD FRAME ---
+# Ye function check karega ke frame server par hai ya nahi.
+# Agar nahi hoga, toh aapke diye gaye link se download kar lega.
+FRAME_FILENAME = "premium_frame.png"
+FRAME_URL = "https://i.postimg.cc/YSKjVG2w/1770355527236.png"
+
+def check_and_download_frame():
+    if not os.path.exists(FRAME_FILENAME):
+        print("📥 Downloading Premium Frame...")
+        try:
+            response = requests.get(FRAME_URL)
+            if response.status_code == 200:
+                with open(FRAME_FILENAME, 'wb') as f:
+                    f.write(response.content)
+                print("✅ Frame Saved Successfully!")
+            else:
+                print("❌ Failed to download frame.")
+        except Exception as e:
+            print(f"❌ Error downloading frame: {e}")
+
+# Server start hote hi frame check karo
+check_and_download_frame()
+
+# --- 🎭 PRO HEADERS (For Search Engine) ---
 def get_headers():
     return {
         "User-Agent": random.choice([
@@ -23,12 +45,12 @@ def get_headers():
 
 @app.route('/')
 def home():
-    return "🦅 𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗 - All-in-One API Engine Live!"
+    return "🦅 𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗 - Premium API Active!"
 
 # ==========================================
 # 🔍 ENGINE 1: INTELLIGENT SEARCH (BING + DDG)
 # ==========================================
-@app.route('/api/ask', methods=['GET'])
+@app.route('/api/search', methods=['GET'])
 def ask_engine():
     query = request.args.get('q')
     if not query: return jsonify({"status": False, "error": "Query missing!"})
@@ -63,112 +85,62 @@ def ask_engine():
     return jsonify({"status": True if results else False, "results": results, "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗"})
 
 # ==========================================
-# 📥 ENGINE 2: MEDIA DOWNLOADER (YT + TIKTOK)
-# ==========================================
-@app.route('/api/ytdl', methods=['GET'])
-def youtube_download():
-    video_url = request.args.get('url')
-    req_type = request.args.get('type', 'audio') # audio or video
-    
-    if not video_url: return jsonify({"status": False, "error": "URL missing!"}), 400
-
-    # Smart Format Logic (To avoid 'Format Not Available' error)
-    ydl_opts = {
-        'format': 'ba/b' if req_type == 'audio' else 'best', # Safe Mode
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'cookiefile': 'cookies.txt', # Netscape cookies lazmi upload karein
-        'noplaylist': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios'], # Mobile client bypass
-                'skip': ['hls', 'dash']
-            }
-        },
-        'user_agent': get_headers()["User-Agent"]
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=False)
-            dl_link = info.get('url') or (info['formats'][-1]['url'] if 'formats' in info else None)
-            
-            return jsonify({
-                "status": True,
-                "title": info.get('title'),
-                "download_url": dl_link,
-                "duration": info.get('duration_string'),
-                "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗"
-            })
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)}), 500
-
-# ==========================================
-# 🖼️ ENGINE 3: AESTHETIC GRAPHICS (FRIEND FRAME)
+# 🖼️ ENGINE 2: PREMIUM FRIEND FRAME
 # ==========================================
 @app.route('/api/friend', methods=['GET'])
 def friend_frame():
     try:
+        # Check if frame exists, if not try downloading again
+        if not os.path.exists(FRAME_FILENAME):
+            check_and_download_frame()
+            if not os.path.exists(FRAME_FILENAME):
+                return {"error": "Frame image not found on server."}, 500
+
         url1 = request.args.get('url1')
         url2 = request.args.get('url2')
-        name1 = request.args.get('name1', 'Friend')
-        name2 = request.args.get('name2', 'Friend')
 
         if not url1 or not url2: return {"error": "URLs missing"}, 400
 
-        # Canvas Setup
-        W, H = 1000, 600
-        background = Image.new('RGB', (W, H), color='#151515') # Premium Dark Black
-        draw = ImageDraw.Draw(background)
-
-        # Image Processor
-        def process_img(url):
-            resp = requests.get(url)
-            img = Image.open(io.BytesIO(resp.content)).convert("RGB")
-            return ImageOps.fit(img, (350, 350), centering=(0.5, 0.5))
-
-        img1 = process_img(url1)
-        img2 = process_img(url2)
-
-        # --- DRAWING ---
-        gold_color = "#FFD700"
+        # 1. Load Base Frame
+        base = Image.open(FRAME_FILENAME).convert("RGBA")
         
-        # Borders (Left & Right)
-        draw.rectangle([45, 95, 405, 455], outline=gold_color, width=8) 
-        background.paste(img1, (50, 100))
+        # 2. Create Canvas
+        final_image = Image.new("RGBA", base.size)
+
+        # 3. Image Processor Function
+        def process_img(url, size):
+            resp = requests.get(url, stream=True)
+            resp.raise_for_status()
+            img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+            img = ImageOps.fit(img, size, centering=(0.5, 0.5))
+            return img
+
+        # 🛠️ FRAME COORDINATES SETTINGS
+        # Frame ke hisab se exact settings (Gold/Silver Side-by-Side)
+        FRAME_WIDTH = 320   # Photo ki choraai
+        FRAME_HEIGHT = 430  # Photo ki lambai
         
-        draw.rectangle([595, 95, 955, 455], outline=gold_color, width=8)
-        background.paste(img2, (600, 100))
-
-        # Connector Line
-        draw.line([405, 275, 595, 275], fill=gold_color, width=3)
-        # Heart Center
-        draw.ellipse([480, 255, 520, 295], fill="#E50914", outline=gold_color, width=2)
-
-        # Fonts (Fallback Logic)
-        try:
-            # Linux server fonts
-            font_bold = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 50)
-            font_reg = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
-            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
-        except:
-            font_bold = ImageFont.load_default()
-            font_reg = ImageFont.load_default()
-            font_small = ImageFont.load_default()
-
-        # Text Overlay
-        draw.text((W/2, 50), "BEST FRIENDS FOREVER", font=font_bold, fill=gold_color, anchor="mm")
+        # Left Photo Position (X, Y)
+        LEFT_POS = (138, 165)
         
-        quote = "Side by side or miles apart,\nreal friends are always close to the heart."
-        draw.multiline_text((W/2, 520), quote, font=font_reg, fill="white", anchor="mm", align="center")
+        # Right Photo Position (X, Y)
+        RIGHT_POS = (565, 165)
 
-        draw.text((225, 480), name1, font=font_small, fill="white", anchor="mm")
-        draw.text((775, 480), name2, font=font_small, fill="white", anchor="mm")
+        # Process Images
+        img1 = process_img(url1, (FRAME_WIDTH, FRAME_HEIGHT))
+        img2 = process_img(url2, (FRAME_WIDTH, FRAME_HEIGHT))
 
-        # Output
+        # 4. COMPOSITING (Jodna)
+        # Pehle photos lagayenge (Peeche)
+        final_image.paste(img1, LEFT_POS)
+        final_image.paste(img2, RIGHT_POS)
+        
+        # Phir uske upar Frame lagayenge (Taake borders photo ke upar aayen)
+        final_image.paste(base, (0, 0), base)
+
+        # 5. Send Result
         img_io = io.BytesIO()
-        background.save(img_io, 'PNG')
+        final_image.save(img_io, 'PNG')
         img_io.seek(0)
         return send_file(img_io, mimetype='image/png')
 
@@ -176,5 +148,6 @@ def friend_frame():
         return {"error": str(e)}, 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
     
