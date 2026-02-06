@@ -3,6 +3,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 import requests
 import io
 
+app = Flask(_name_)
+
 # ... (Apka purana code yahan hoga) ...
 
 # --- 🖼️ FRIEND FRAME GENERATOR API ---
