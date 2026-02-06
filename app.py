@@ -1,111 +1,64 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import requests
-from bs4 import BeautifulSoup
-from urllib.parse import quote_plus
-import random
+import io
+import os
+from PIL import Image, ImageOps
 
 app = Flask(__name__)
 
-# ===============================
-# 🛡️ SMART HEADERS (ANTI-BLOCK)
-# ===============================
-def get_headers():
-    return {
-        "User-Agent": random.choice([
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "Mozilla/5.0 (Linux; Android 10)",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-        ]),
-        "Accept": "text/html",
-        "Referer": "https://www.google.com/"
-    }
-
-# ===============================
-# 🏠 HOME
-# ===============================
-@app.route("/")
+@app.route('/')
 def home():
-    return "🦅 AHMAD RDX ASK API LIVE"
+    return "🦅 AHMAD RDX - Dost Frame API Active!"
 
-# =================================================
-# 🔍 ASK ENGINE (BING + DUCKDUCKGO)
-# =================================================
-@app.route("/api/ask", methods=["GET"])
-def ask_engine():
-    query = request.args.get("q", "").lower().strip()
-    if not query:
-        return jsonify({"status": False, "error": "Query missing"})
-
-    # =========================
-    # 🧠 INTENT DETECTION (FACT)
-    # =========================
-    if "pakistan" in query and ("kab bana" in query or "when was" in query or "founded" in query):
-        return jsonify({
-            "status": True,
-            "question": query,
-            "answer": "Pakistan 14 August 1947 ko bana tha.",
-            "language": "roman_urdu",
-            "brand": "AHMAD RDX"
-        })
-
-    # =========================
-    # 🔍 SEARCH MODE (GENERAL)
-    # =========================
-    q = quote_plus(query)
-    results = []
-
+@app.route('/api/dost', methods=['GET'])
+def dost_frame():
     try:
-        r = requests.get(
-            f"https://www.bing.com/search?q={q}",
-            headers=get_headers(),
-            timeout=10
-        )
-        soup = BeautifulSoup(r.text, "html.parser")
+        # Aapka Diya Hua Frame Link
+        FRAME_URL = "https://i.postimg.cc/YSKjVG2w/1770355527236.png"
+        
+        # User 1 aur User 2 ki PFP links
+        u1_url = request.args.get('u1')
+        u2_url = request.args.get('u2')
 
-        for item in soup.select("li.b_algo")[:5]:
-            title = item.select_one("h2")
-            link = item.select_one("a")
-            desc = item.select_one(".b_caption p")
+        if not u1_url or not u2_url:
+            return jsonify({"status": False, "error": "Missing image URLs"}), 400
 
-            if title and link:
-                results.append({
-                    "title": title.get_text(strip=True),
-                    "link": link.get("href"),
-                    "description": desc.get_text(strip=True) if desc else ""
-                })
-    except:
-        pass
+        # 1. Frame Load Karein
+        frame_resp = requests.get(FRAME_URL, stream=True, timeout=10)
+        base_frame = Image.open(io.BytesIO(frame_resp.content)).convert("RGBA")
+        
+        # 2. Base Canvas Banayein
+        canvas = Image.new("RGBA", base_frame.size)
 
-    if not results:
-        return jsonify({
-            "status": False,
-            "answer": "Is sawal ka reliable jawab nahi mila.",
-            "language": "roman_urdu",
-            "brand": "AHMAD RDX"
-        })
+        def process_avatar(url):
+            # Photo download karein
+            resp = requests.get(url, stream=True, timeout=10)
+            img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+            # 🛡️ AUTOMATIC FIT: (320, 430) size mein photo fit karna
+            # Ye chehra center mein rakhega aur baki extra hissa kaat dega
+            return ImageOps.fit(img, (320, 430), centering=(0.5, 0.5))
 
-    # Roman Urdu fallback (simple)
-    answer = results[0]["description"] or results[0]["title"]
+        # 3. Dono Photos Process Karein
+        avatar1 = process_avatar(u1_url)
+        avatar2 = process_avatar(u2_url)
 
-    return jsonify({
-        "status": True,
-        "question": query,
-        "answer": f"Mukhtasir jawab: {answer}",
-        "language": "mixed",
-        "brand": "AHMAD RDX"
-    })
-    short_answer = results[0]["description"] or results[0]["title"]
+        # 4. Paste Karein (Coordinates Fixed)
+        canvas.paste(avatar1, (138, 165))
+        canvas.paste(avatar2, (565, 165))
+        
+        # 5. Frame ko sabse upar rakhein
+        canvas.paste(base_frame, (0, 0), base_frame)
 
-    return jsonify({
-        "status": True,
-        "question": query,
-        "answer": short_answer,
-        "results": results,
-        "brand": "AHMAD RDX"
-    })
+        # 6. Final Image Send Karein
+        img_io = io.BytesIO()
+        canvas.save(img_io, 'PNG')
+        img_io.seek(0)
+        return send_file(img_io, mimetype='image/png')
 
-# ===============================
-# 🚀 RUN
-# ===============================
+    except Exception as e:
+        return jsonify({"status": False, "error": str(e)}), 500
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+    
