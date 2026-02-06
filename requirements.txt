@@ -1,5 +1,3 @@
-flask
-googlesearch-python
-yt-dlp
-gunicorn
-beautifulsoup4
+Pillow
+requests
+io
