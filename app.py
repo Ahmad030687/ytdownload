@@ -1,48 +1,108 @@
 from flask import Flask, request, jsonify
 import requests
-import os
+from bs4 import BeautifulSoup
+from urllib.parse import quote_plus
+import random
 
 app = Flask(__name__)
 
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+# ===============================
+# 🛡️ SMART HEADERS (ANTI-BLOCK)
+# ===============================
+def get_headers():
+    return {
+        "User-Agent": random.choice([
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Mozilla/5.0 (Linux; Android 10)",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        ]),
+        "Accept": "text/html",
+        "Referer": "https://www.google.com/"
+    }
 
+# ===============================
+# 🏠 HOME
+# ===============================
 @app.route("/")
 def home():
-    return "🦅 AHMAD RDX GEMINI ASK API - LIVE"
+    return "🦅 AHMAD RDX ASK API LIVE"
 
-@app.route("/api/search")
-def search():
-    q = request.args.get("q")
-    if not q:
-        return jsonify({"status": False, "error": "Query missing"})
-
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-
-        payload = {
-            "contents": [{
-                "parts": [{
-                    "text": f"Answer briefly and clearly:\nQ: {q}\nA:"
-                }]
-            }]
-        }
-
-        r = requests.post(url, json=payload, timeout=30)
-        data = r.json()
-
-        answer = data["candidates"][0]["content"]["parts"][0]["text"]
-        answer = answer.split("\n")[0].strip()[:300]
-
+# =================================================
+# 🔍 ASK ENGINE (BING + DUCKDUCKGO)
+# =================================================
+@app.route("/api/ask", methods=["GET"])
+def ask_engine():
+    query = request.args.get("q", "").strip()
+    if not query:
         return jsonify({
-            "status": True,
-            "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗",
-            "question": q,
-            "answer": answer
+            "status": False,
+            "error": "Query missing"
         })
 
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)})
+    q = quote_plus(query)
+    results = []
 
+    # -------- BING SEARCH --------
+    try:
+        bing_url = f"https://www.bing.com/search?q={q}"
+        r = requests.get(bing_url, headers=get_headers(), timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        for item in soup.select("li.b_algo")[:5]:
+            title = item.select_one("h2")
+            link = item.select_one("a")
+            desc = item.select_one(".b_caption p")
+
+            if title and link:
+                results.append({
+                    "title": title.get_text(strip=True),
+                    "link": link.get("href"),
+                    "description": desc.get_text(strip=True) if desc else ""
+                })
+    except Exception as e:
+        print("BING ERROR:", e)
+
+    # -------- DUCKDUCKGO FALLBACK --------
+    if not results:
+        try:
+            ddg_url = f"https://duckduckgo.com/html/?q={q}"
+            r = requests.get(ddg_url, headers=get_headers(), timeout=10)
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            for item in soup.select(".result")[:5]:
+                a = item.select_one(".result__a")
+                s = item.select_one(".result__snippet")
+
+                if a:
+                    results.append({
+                        "title": a.get_text(strip=True),
+                        "link": a.get("href"),
+                        "description": s.get_text(strip=True) if s else ""
+                    })
+        except Exception as e:
+            print("DDG ERROR:", e)
+
+    # -------- FINAL RESPONSE --------
+    if not results:
+        return jsonify({
+            "status": False,
+            "answer": "No reliable result found",
+            "results": [],
+            "brand": "AHMAD RDX"
+        })
+
+    short_answer = results[0]["description"] or results[0]["title"]
+
+    return jsonify({
+        "status": True,
+        "question": query,
+        "answer": short_answer,
+        "results": results,
+        "brand": "AHMAD RDX"
+    })
+
+# ===============================
+# 🚀 RUN
+# ===============================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=5000)
