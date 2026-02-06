@@ -1,4 +1,6 @@
-Pillow
+Flask
 requests
+beautifulsoup4
+yt-dlp
+Pillow
 gunicorn
-flask
