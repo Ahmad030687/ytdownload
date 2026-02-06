@@ -1,65 +1,66 @@
 from flask import Flask, request, jsonify
 import requests
+from bs4 import BeautifulSoup
 import re
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🦅 AHMAD RDX - Perfect Search API Active!"
+    return "🦅 𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗 - Perfect Direct Search Active!"
 
-# ==========================================
-# 🧠 TO-THE-POINT SEARCH ENGINE
-# ==========================================
 @app.route('/api/search', methods=['GET'])
 def search_engine():
     query = request.args.get('q')
     if not query:
-        return jsonify({"status": False, "error": "Sawal missing hai!"})
+        return jsonify({"status": False, "error": "Query missing!"})
 
-    final_answer = ""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+    }
 
     try:
-        # STEP 1: DuckDuckGo Instant Answer (Facts ke liye best)
-        # Ye seedha "14 August 1947" ya "Islamabad" jaise jawab deta hai
-        ddg_url = f"https://api.duckduckgo.com/?q={query}&format=json&no_html=1&skip_disambig=1"
-        ddg_data = requests.get(ddg_url, timeout=5).json()
+        # 1. TRY BING FOR DIRECT ANSWER (Dates/Facts)
+        bing_url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
+        resp = requests.get(bing_url, headers=headers, timeout=5)
+        soup = BeautifulSoup(resp.text, 'html.parser')
 
-        if ddg_data.get("Answer"):
-            final_answer = ddg_data.get("Answer")
-        elif ddg_data.get("AbstractText"):
-            final_answer = ddg_data.get("AbstractText")
-
-        # STEP 2: Agar DDG se jawab nahi mila, toh Wikipedia Search
-        if not final_answer:
+        # Target specific elements that contain the direct answer
+        answer = None
+        
+        # A. Check for Bing Answer Box (The bold text at top)
+        ans_box = soup.select_one('.b_focusTextMedium') or soup.select_one('.b_focusText') or soup.select_one('.rwrl')
+        
+        if ans_box:
+            answer = ans_box.get_text().strip()
+        else:
+            # B. Fallback to Wikipedia Summary if no direct box
             wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{query.replace(' ', '_')}"
-            wiki_resp = requests.get(wiki_url, timeout=5)
-            if wiki_resp.status_code == 200:
-                wiki_data = wiki_resp.json()
-                final_answer = wiki_data.get("extract", "")
+            wiki_data = requests.get(wiki_url, timeout=5).json()
+            answer = wiki_data.get('extract')
 
-        # STEP 3: SAFFAI (Extra details hatana)
-        if final_answer:
-            # Sirf pehla sentence uthao (To-the-point)
-            if "." in final_answer:
-                final_answer = final_answer.split(".")[0] + "."
+        if answer:
+            # CLEANING: Remove extra dates like "4 days ago" and limit to first sentence
+            # Removes "Feb 6, 2026 · " or similar patterns
+            answer = re.sub(r'^[A-Za-z]+ \d+, \d+ · ', '', answer) 
+            answer = re.sub(r'\[\d+\]', '', answer) # Remove citations [1]
             
-            # Junk words saaf karo
-            final_answer = re.sub(r'\[\d+\]', '', final_answer) # Remove [1], [2]
-            
+            # To-the-point: Sirf pehla sentence
+            if "." in answer:
+                answer = answer.split(".")[0] + "."
+
             return jsonify({
                 "status": True,
-                "answer": final_answer,
-                "brand": "🦅 AHMAD RDX"
+                "answer": answer,
+                "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗"
             })
-        else:
-            return jsonify({"status": False, "error": "No direct answer found."})
+        
+        return jsonify({"status": False, "error": "Direct answer not found."})
 
     except Exception as e:
-        return jsonify({"status": True, "answer": "Ustad, internet slow hai ya sawal mushkil hai. Dobara poochein!"})
+        return jsonify({"status": False, "error": "Server busy, try again."})
 
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
     
