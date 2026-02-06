@@ -32,20 +32,34 @@ def home():
 # =================================================
 @app.route("/api/ask", methods=["GET"])
 def ask_engine():
-    query = request.args.get("q", "").strip()
+    query = request.args.get("q", "").lower().strip()
     if not query:
+        return jsonify({"status": False, "error": "Query missing"})
+
+    # =========================
+    # 🧠 INTENT DETECTION (FACT)
+    # =========================
+    if "pakistan" in query and ("kab bana" in query or "when was" in query or "founded" in query):
         return jsonify({
-            "status": False,
-            "error": "Query missing"
+            "status": True,
+            "question": query,
+            "answer": "Pakistan 14 August 1947 ko bana tha.",
+            "language": "roman_urdu",
+            "brand": "AHMAD RDX"
         })
 
+    # =========================
+    # 🔍 SEARCH MODE (GENERAL)
+    # =========================
     q = quote_plus(query)
     results = []
 
-    # -------- BING SEARCH --------
     try:
-        bing_url = f"https://www.bing.com/search?q={q}"
-        r = requests.get(bing_url, headers=get_headers(), timeout=10)
+        r = requests.get(
+            f"https://www.bing.com/search?q={q}",
+            headers=get_headers(),
+            timeout=10
+        )
         soup = BeautifulSoup(r.text, "html.parser")
 
         for item in soup.select("li.b_algo")[:5]:
@@ -59,38 +73,27 @@ def ask_engine():
                     "link": link.get("href"),
                     "description": desc.get_text(strip=True) if desc else ""
                 })
-    except Exception as e:
-        print("BING ERROR:", e)
+    except:
+        pass
 
-    # -------- DUCKDUCKGO FALLBACK --------
-    if not results:
-        try:
-            ddg_url = f"https://duckduckgo.com/html/?q={q}"
-            r = requests.get(ddg_url, headers=get_headers(), timeout=10)
-            soup = BeautifulSoup(r.text, "html.parser")
-
-            for item in soup.select(".result")[:5]:
-                a = item.select_one(".result__a")
-                s = item.select_one(".result__snippet")
-
-                if a:
-                    results.append({
-                        "title": a.get_text(strip=True),
-                        "link": a.get("href"),
-                        "description": s.get_text(strip=True) if s else ""
-                    })
-        except Exception as e:
-            print("DDG ERROR:", e)
-
-    # -------- FINAL RESPONSE --------
     if not results:
         return jsonify({
             "status": False,
-            "answer": "No reliable result found",
-            "results": [],
+            "answer": "Is sawal ka reliable jawab nahi mila.",
+            "language": "roman_urdu",
             "brand": "AHMAD RDX"
         })
 
+    # Roman Urdu fallback (simple)
+    answer = results[0]["description"] or results[0]["title"]
+
+    return jsonify({
+        "status": True,
+        "question": query,
+        "answer": f"Mukhtasir jawab: {answer}",
+        "language": "mixed",
+        "brand": "AHMAD RDX"
+    })
     short_answer = results[0]["description"] or results[0]["title"]
 
     return jsonify({
