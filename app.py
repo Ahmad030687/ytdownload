@@ -1,153 +1,171 @@
 from flask import Flask, request, jsonify, send_file
+import yt_dlp
 import requests
 from bs4 import BeautifulSoup
-import random
 import os
 import io
+import re
 from PIL import Image, ImageOps
 
 app = Flask(__name__)
 
-# --- 🛠️ SETUP: AUTO-DOWNLOAD FRAME ---
-# Ye function check karega ke frame server par hai ya nahi.
-# Agar nahi hoga, toh aapke diye gaye link se download kar lega.
+# --- 🛠️ SETUP ---
 FRAME_FILENAME = "premium_frame.png"
 FRAME_URL = "https://i.postimg.cc/YSKjVG2w/1770355527236.png"
+DEFAULT_AVATAR = "https://i.imgur.com/5ki1g8T.png"
 
-def check_and_download_frame():
-    if not os.path.exists(FRAME_FILENAME):
-        print("📥 Downloading Premium Frame...")
-        try:
-            response = requests.get(FRAME_URL)
-            if response.status_code == 200:
-                with open(FRAME_FILENAME, 'wb') as f:
-                    f.write(response.content)
-                print("✅ Frame Saved Successfully!")
-            else:
-                print("❌ Failed to download frame.")
-        except Exception as e:
-            print(f"❌ Error downloading frame: {e}")
-
-# Server start hote hi frame check karo
-check_and_download_frame()
-
-# --- 🎭 PRO HEADERS (For Search Engine) ---
-def get_headers():
-    return {
-        "User-Agent": random.choice([
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36"
-        ]),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Referer": "https://www.google.com/"
-    }
-
-@app.route('/')
-def home():
-    return "🦅 𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗 - Premium API Active!"
-
-# ==========================================
-# 🔍 ENGINE 1: INTELLIGENT SEARCH (BING + DDG)
-# ==========================================
-@app.route('/api/search', methods=['GET'])
-def ask_engine():
-    query = request.args.get('q')
-    if not query: return jsonify({"status": False, "error": "Query missing!"})
-
-    results = []
-    
-    # 1. Try Bing First
-    try:
-        resp = requests.get(f"https://www.bing.com/search?q={query.replace(' ', '+')}", headers=get_headers(), timeout=10)
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        for item in soup.select('li.b_algo')[:5]:
-            title = item.select_one('h2').get_text() if item.select_one('h2') else ""
-            link = item.select_one('a')['href'] if item.select_one('a') else ""
-            desc = item.select_one('.b_caption p').get_text() if item.select_one('.b_caption p') else ""
-            if title and link:
-                results.append({"title": title, "link": link, "description": desc})
+if not os.path.exists(FRAME_FILENAME):
+    try: requests.get(FRAME_URL).content and open(FRAME_FILENAME, 'wb').write(requests.get(FRAME_URL).content)
     except: pass
 
-    # 2. Fallback to DuckDuckGo if Bing fails
-    if not results:
-        try:
-            resp = requests.get(f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}", headers=get_headers(), timeout=10)
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            for r in soup.select('.result__body')[:5]:
-                results.append({
-                    "title": r.select_one('.result__title').get_text().strip(),
-                    "link": r.select_one('.result__a')['href'],
-                    "description": r.select_one('.result__snippet').get_text().strip()
-                })
-        except: pass
-
-    return jsonify({"status": True if results else False, "results": results, "brand": "𝐀𝐇𝐌𝐀𝐃 𝐑𝐃𝐗"})
+@app.route('/')
+def home(): return "🦅 AHMAD RDX - Direct Answer API Active!"
 
 # ==========================================
-# 🖼️ ENGINE 2: PREMIUM FRIEND FRAME
+# 🧠 ENGINE 1: TO-THE-POINT ANSWER (No Bullshit)
+# ==========================================
+@app.route('/api/search', methods=['GET'])
+def direct_answer():
+    query = request.args.get('q')
+    if not query: return jsonify({"status": False, "error": "Sawal missing hai!"})
+
+    # Cleaning Logic: Faltu words hatane ke liye
+    def clean_text(text):
+        # 1. Citations hatana [1], [2]
+        text = re.sub(r'\[\d+\]', '', text)
+        # 2. Dates hatana (e.g. "4 days ago · ")
+        if " · " in text:
+            text = text.split(" · ")[-1]
+        if "..." in text and len(text) < 20: # Agar shuru mein dots hain
+            text = text.replace("...", "").strip()
+        # 3. Sirf pehla jumla (First Sentence Only)
+        # Ye sabse zaroori hai taake description na bane
+        if "." in text:
+            text = text.split(".")[0] + "."
+        return text
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    final_answer = None
+
+    try:
+        # STRATEGY 1: DuckDuckGo Instant Answer API (Best for Facts/Math)
+        # Ye seedha "4" ya "14 August" deta hai
+        ddg_url = f"https://api.duckduckgo.com/?q={query}&format=json"
+        ddg_resp = requests.get(ddg_url, timeout=3).json()
+        
+        if ddg_resp.get("Answer"):
+            final_answer = ddg_resp.get("Answer")
+        elif ddg_resp.get("AbstractText"):
+            final_answer = ddg_resp.get("AbstractText")
+        
+        # STRATEGY 2: Google/Bing Snippet Scraping (Backup)
+        if not final_answer:
+            url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+            resp = requests.get(url, headers=headers, timeout=5)
+            soup = BeautifulSoup(resp.text, 'html.parser')
+
+            # Google "Featured Snippet" Class (B0prTE)
+            snippet = soup.select_one('.B0prTE') or soup.select_one('.hgKElc') or soup.select_one('.kno-rdesc span')
+            
+            if snippet:
+                final_answer = snippet.get_text().strip()
+            else:
+                # Agar snippet na mile to description ka pehla jumla
+                desc = soup.select_one('.VwiC3b')
+                if desc:
+                    final_answer = desc.get_text().strip()
+
+    except Exception as e:
+        return jsonify({"status": False, "error": str(e)})
+
+    if final_answer:
+        # Aakhri safai (To The Point banane ke liye)
+        final_answer = clean_text(final_answer)
+        return jsonify({
+            "status": True,
+            "answer": final_answer,
+            "brand": "🦅 AHMAD RDX"
+        })
+    else:
+        return jsonify({"status": False, "error": "Answer nahi mila."})
+
+# ==========================================
+# 📥 ENGINE 2: YOUTUBE (No Fail Mode)
+# ==========================================
+@app.route('/api/ytdl', methods=['GET'])
+def downloader():
+    video_url = request.args.get('url')
+    if not video_url: return jsonify({"status": False, "error": "URL missing"}), 400
+
+    cookie_file = 'cookies.txt'
+    if not os.path.exists(cookie_file): return jsonify({"status": False, "error": "cookies.txt missing"}), 500
+
+    ydl_opts = {
+        'format': 'best[ext=mp4]/best', # No FFmpeg needed
+        'quiet': True, 'no_warnings': True, 'nocheckcertificate': True,
+        'cookiefile': cookie_file, 'noplaylist': True, 'geo_bypass': True, 'ignoreerrors': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            if not info: return jsonify({"status": False, "error": "No info"}), 404
+            
+            download_url = info.get('url')
+            if not download_url:
+                for f in reversed(info.get('formats', [])):
+                    if f.get('url') and f.get('protocol') in ['https', 'http']:
+                        download_url = f['url']; break
+            
+            if not download_url: return jsonify({"status": False, "error": "Link nahi mila"}), 404
+
+            return jsonify({
+                "status": True,
+                "title": info.get('title'),
+                "download_url": download_url,
+                "author": "Ahmad RDX"
+            })
+    except Exception as e: return jsonify({"status": False, "error": str(e)}), 500
+
+# ==========================================
+# 🖼️ ENGINE 3: FRIEND FRAME (Locked ID Fix)
 # ==========================================
 @app.route('/api/friend', methods=['GET'])
 def friend_frame():
     try:
-        # Check if frame exists, if not try downloading again
-        if not os.path.exists(FRAME_FILENAME):
-            check_and_download_frame()
-            if not os.path.exists(FRAME_FILENAME):
-                return {"error": "Frame image not found on server."}, 500
-
         url1 = request.args.get('url1')
         url2 = request.args.get('url2')
-
         if not url1 or not url2: return {"error": "URLs missing"}, 400
 
-        # 1. Load Base Frame
-        base = Image.open(FRAME_FILENAME).convert("RGBA")
-        
-        # 2. Create Canvas
+        if not os.path.exists(FRAME_FILENAME): requests.get(FRAME_URL)
+        try: base = Image.open(FRAME_FILENAME).convert("RGBA")
+        except: return {"error": "Base frame error"}, 500
+
         final_image = Image.new("RGBA", base.size)
 
-        # 3. Image Processor Function
-        def process_img(url, size):
-            resp = requests.get(url, stream=True)
-            resp.raise_for_status()
-            img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-            img = ImageOps.fit(img, size, centering=(0.5, 0.5))
-            return img
+        def process_img(url):
+            try:
+                resp = requests.get(url, stream=True, timeout=5)
+                resp.raise_for_status()
+                img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+            except:
+                img = Image.open(io.BytesIO(requests.get(DEFAULT_AVATAR).content)).convert("RGBA")
+            return ImageOps.fit(img, (320, 430), centering=(0.5, 0.5))
 
-        # 🛠️ FRAME COORDINATES SETTINGS
-        # Frame ke hisab se exact settings (Gold/Silver Side-by-Side)
-        FRAME_WIDTH = 320   # Photo ki choraai
-        FRAME_HEIGHT = 430  # Photo ki lambai
-        
-        # Left Photo Position (X, Y)
-        LEFT_POS = (138, 165)
-        
-        # Right Photo Position (X, Y)
-        RIGHT_POS = (565, 165)
-
-        # Process Images
-        img1 = process_img(url1, (FRAME_WIDTH, FRAME_HEIGHT))
-        img2 = process_img(url2, (FRAME_WIDTH, FRAME_HEIGHT))
-
-        # 4. COMPOSITING (Jodna)
-        # Pehle photos lagayenge (Peeche)
-        final_image.paste(img1, LEFT_POS)
-        final_image.paste(img2, RIGHT_POS)
-        
-        # Phir uske upar Frame lagayenge (Taake borders photo ke upar aayen)
+        final_image.paste(process_img(url1), (138, 165))
+        final_image.paste(process_img(url2), (565, 165))
         final_image.paste(base, (0, 0), base)
 
-        # 5. Send Result
         img_io = io.BytesIO()
         final_image.save(img_io, 'PNG')
         img_io.seek(0)
         return send_file(img_io, mimetype='image/png')
-
-    except Exception as e:
-        return {"error": str(e)}, 500
+    except Exception as e: return {"error": str(e)}, 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-    
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+        
